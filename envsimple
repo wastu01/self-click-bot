@@ -1,0 +1,4 @@
+# channel ids where the bot listens for messages
+ALLOWED_IDS=
+BUTTON_ID=
+USER_TOKEN=
