@@ -1,0 +1,1 @@
+59 * * * * sleep 45; ./start_bot.sh
