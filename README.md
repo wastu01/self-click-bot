@@ -1,7 +1,7 @@
 # Self-Click-Bot
 
-## Description
-A Discord Python Selfbot can click bot button on the latest message.
+## Overview
+this self-bot project to automate button clicking tasks in Discord. The bot is designed to interact with specific Discord messages and components, aiming to achieve high precision in timed tasks like clicking buttons.
 
 ## Features
 - Automatically detects the latest bot message.
@@ -24,16 +24,6 @@ BONG_BUTTON_ID=xxx
 
 USER_TOKEN=xxx
 ```
-
-## Sudo-Bot
-
-## Overview
-A self-bot project to automate button clicking tasks in Discord. The bot is designed to interact with specific Discord messages and components, aiming to achieve high precision in timed tasks like clicking buttons.
-
-## Features
-- Automatically clicks specified Discord buttons.
-- Configurable delays and execution times.
-- Logs all actions for debugging and monitoring.
 
 ## Setup
 1. Clone the repository:
@@ -63,7 +53,7 @@ A self-bot project to automate button clicking tasks in Discord. The bot is desi
    python selfbot-click-buttom.py
    ```
 
-## Cron Setup
+## Cron Setup on Mac
 To automate the bot's execution:
 1. Edit the `crontab` configuration:
    ```bash
