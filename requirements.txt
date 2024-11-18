@@ -1,0 +1,4 @@
+discord.py-self @ git+https://github.com/dolfies/discord.py-self.git@b813c625dcaee7cd013ad28f7ae348339f4e02a4
+python-dotenv
+aiohttp>=3.7.4,<4
+audioop-lts; python_version>='3.13'
