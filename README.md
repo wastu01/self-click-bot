@@ -32,12 +32,12 @@ USER_TOKEN=xxx
    ```
 2. Navigate to the project directory:
    ```bash
-   cd Sudo-bot
+   cd self-click-bot
    ```
 3. Create a virtual environment:
    ```bash
    python -m venv venv
-   source venv/bin/activate   # On Windows, use `venv\Scripts\activate`
+   source venv/bin/activate
    ```
 4. Install dependencies:
    ```bash
