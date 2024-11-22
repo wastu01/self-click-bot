@@ -3,22 +3,18 @@ import logging
 import sys
 import os
 import time
-from dotenv import load_dotenv
 import asyncio
-from datetime import datetime
+from dotenv import load_dotenv
+from datetime import datetime, timezone
 
-# 强制加载环境变量，覆盖旧缓存
+# 加載環境變數，覆蓋舊快取
 load_dotenv(override=True)
 
 TOKEN = os.getenv('USER_TOKEN')
 CHANNEL_ID = int(os.getenv('ALLOWED_IDS'))
 BONG_BUTTON_ID = os.getenv('BUTTON_ID')
 
-# 清除所有现有的处理器
-for handler in logging.getLogger().handlers[:]:
-    logging.getLogger().removeHandler(handler)
-
-
+# 配置日誌輸出
 log_filename = f"/Users/larry/Github/self-click-bot/cron_debug_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
 logging.basicConfig(
     level=logging.INFO,
@@ -30,62 +26,69 @@ logging.basicConfig(
 )
 logging.info("Bot script started.")
 
-client = discord.Client()  # 保留原始的 discord.Client() 实例
+client = discord.Client()
 
-last_message_id = None  # 记录最后一次的消息
+# 記錄最後的訊息 ID
+last_message_id = None
 
 async def check_and_click_button(channel):
     global last_message_id
     try:
-        retries = 30  # 最大重试次数
+        retries = 10  # 增加重試次數
         for attempt in range(retries):
-            async for message in channel.history(limit=1):
-                if message.author.bot:
-                    if message.id == last_message_id:
-                        logging.info("No new message detected, skipping...")
-                        await asyncio.sleep(0.01)  # 等待  秒后重试
-                        continue
+            async for message in channel.history(limit=1):  # 獲取最新訊息
+                # 訊息的時間與當前時間對比
+                message_time = message.created_at.replace(tzinfo=timezone.utc).timestamp()
+                current_time = datetime.now(timezone.utc).timestamp()
 
+                # 檢查是否為超過一小時的舊訊息
+                if current_time - message_time > 3600:  # 超過1小時
+                    logging.info("Message is older than one hour, skipping...")
+                    await asyncio.sleep(0.005)  # 等待後重試
+                    continue
+
+                # 檢查是否為新訊息
+                if message.id != last_message_id:
                     last_message_id = message.id  # 更新最新消息 ID
                     logging.info(f"New bot message detected: {message.content}")
-
                     for action_row in message.components:
                         for component in action_row.children:
                             if isinstance(component, discord.Button) and component.custom_id == BONG_BUTTON_ID:
-                                logging.info(f"Attempting to click the button with custom_id '{BONG_BUTTON_ID}'.")
-                                await asyncio.sleep(0.01)  # 适当延迟
-                                await asyncio.wait_for(component.click(), timeout=10)
+                                logging.info(f"Clicking button with custom_id '{BONG_BUTTON_ID}'.")
+                                await asyncio.wait_for(component.click(), timeout=5)
                                 logging.info("Button clicked successfully.")
                                 return
-                await asyncio.sleep(0.02)  # 若无效消息，延迟重试
+
+            logging.info(f"Attempt {attempt + 1}/{retries} failed. Retrying...")
+            await asyncio.sleep(0.05)  # 每次重試間隔 50 毫秒
     except Exception as e:
         logging.error(f"Error while checking messages: {e}")
 
 async def main():
     await client.wait_until_ready()
-    # 手动运行时跳过延迟
-    if "MANUAL_RUN" in os.environ:
-        logging.info("Manual run detected, skipping delay.")
-    else:
-        # 等待到整点开始检测
-        current_time = time.localtime()
-        if current_time.tm_sec < 60:
-            delay = 60 - current_time.tm_sec
-            await asyncio.sleep(delay)
+
+    # 等待至整點，考慮程式啟動時間
+    current_time = time.localtime()
+    if current_time.tm_sec < 50:  # 確保在整點前幾秒開始檢測
+        delay = 50 - current_time.tm_sec
+        logging.info(f"Waiting {delay} second(s) to start detection.")
+        await asyncio.sleep(delay)
 
     channel = client.get_channel(CHANNEL_ID)
     if channel:
         logging.info(f"Monitoring channel ID: {CHANNEL_ID}")
-        await asyncio.wait_for(check_and_click_button(channel), timeout=15)
+        await check_and_click_button(channel)
     else:
         logging.error("Channel not found. Check your CHANNEL_ID in .env.")
+
+    # 結束程式
     await client.close()
     logging.info("Bot operation completed.")
-    sys.exit(0)  # 在结束程序时退出
+    sys.exit(0)
 
 @client.event
 async def on_ready():
     logging.info(f"Logged in as {client.user}")
-    asyncio.create_task(main())  # 保留原来的调用方式
+    asyncio.create_task(main())
 
 client.run(TOKEN)
