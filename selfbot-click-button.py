@@ -2,14 +2,15 @@ import discord
 import logging
 import sys
 import os
-import time
 import asyncio
 from dotenv import load_dotenv
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 # 加載環境變數，覆蓋舊快取
 load_dotenv(override=True)
 
+# 定義提前初始化的秒數
+INITIALIZE_BEFORE_SEC = int(os.getenv("INITIALIZE_BEFORE_SEC", 10))  # 預設提前 10 秒
 TOKEN = os.getenv('USER_TOKEN')
 CHANNEL_ID = int(os.getenv('ALLOWED_IDS'))
 BONG_BUTTON_ID = os.getenv('BUTTON_ID')
@@ -34,46 +35,52 @@ last_message_id = None
 async def check_and_click_button(channel):
     global last_message_id
     try:
-        retries = 10  # 增加重試次數
-        for attempt in range(retries):
-            async for message in channel.history(limit=1):  # 獲取最新訊息
-                # 訊息的時間與當前時間對比
-                message_time = message.created_at.replace(tzinfo=timezone.utc).timestamp()
-                current_time = datetime.now(timezone.utc).timestamp()
+        async for message in channel.history(limit=1):  # 獲取最新訊息
+            # 訊息的時間與整點時間對比
+            message_time = message.created_at.replace(tzinfo=timezone.utc).timestamp()
+            scheduled_time = datetime.now(timezone.utc).replace(second=0, microsecond=0).timestamp()
 
-                # 檢查是否為超過一小時的舊訊息
-                if current_time - message_time > 3600:  # 超過1小時
-                    logging.info("Message is older than one hour, skipping...")
-                    await asyncio.sleep(0.005)  # 等待後重試
-                    continue
+            logging.info(f"Message created at: {message_time}, Scheduled time: {scheduled_time}")
 
-                # 檢查是否為新訊息
-                if message.id != last_message_id:
-                    last_message_id = message.id  # 更新最新消息 ID
-                    logging.info(f"New bot message detected: {message.content}")
-                    for action_row in message.components:
-                        for component in action_row.children:
-                            if isinstance(component, discord.Button) and component.custom_id == BONG_BUTTON_ID:
-                                logging.info(f"Clicking button with custom_id '{BONG_BUTTON_ID}'.")
-                                await asyncio.wait_for(component.click(), timeout=5)
-                                logging.info("Button clicked successfully.")
-                                return
+            # 確保訊息是整點後產生
+            if message_time < scheduled_time:
+                logging.info("Old message detected, skipping...")
+                return
 
-            logging.info(f"Attempt {attempt + 1}/{retries} failed. Retrying...")
-            await asyncio.sleep(0.05)  # 每次重試間隔 50 毫秒
+            # 如果訊息是新訊息且尚未處理
+            if message.id != last_message_id:
+                last_message_id = message.id  # 更新最新消息 ID
+                logging.info(f"New bot message detected: {message.content}")
+                for action_row in message.components:
+                    for component in action_row.children:
+                        if isinstance(component, discord.Button) and component.custom_id == BONG_BUTTON_ID:
+                            logging.info(f"Clicking button with custom_id '{BONG_BUTTON_ID}'.")
+                            await asyncio.wait_for(component.click(), timeout=5)
+                            logging.info("Button clicked successfully.")
+                            return
     except Exception as e:
         logging.error(f"Error while checking messages: {e}")
 
 async def main():
     await client.wait_until_ready()
 
-    # 等待至整點，考慮程式啟動時間
-    current_time = time.localtime()
-    if current_time.tm_sec < 50:  # 確保在整點前幾秒開始檢測
-        delay = 50 - current_time.tm_sec
-        logging.info(f"Waiting {delay} second(s) to start detection.")
-        await asyncio.sleep(delay)
+    # 計算到下一整點的延遲
+    current_time = datetime.now(timezone.utc)
+    next_minute = (current_time + timedelta(minutes=1)).replace(second=0, microsecond=0)
+    delay = (next_minute - current_time).total_seconds() - INITIALIZE_BEFORE_SEC
 
+    # 確保 delay 為正值
+    if delay < 0:
+        next_minute += timedelta(minutes=1)
+        delay = (next_minute - current_time).total_seconds()
+
+    logging.info(f"Current time: {current_time}, Next minute: {next_minute}, Final delay: {delay:.2f} second(s)")
+    await asyncio.sleep(delay)
+
+    # 記錄整點檢測開始
+    logging.info("Starting detection at the exact scheduled time.")
+
+    # 開始檢測按鈕
     channel = client.get_channel(CHANNEL_ID)
     if channel:
         logging.info(f"Monitoring channel ID: {CHANNEL_ID}")
